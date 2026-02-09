@@ -1,6 +1,11 @@
+<div align="center">
+  
 # Atomic-Mirai
 
-Atomic-Mirai is a variant of the Condi-Mirai botnet family, designed for educational and research purposes in understanding IoT security vulnerabilities and DDoS attack vectors.
+**Atomic-Mirai is a variant of the Condi-Mirai botnet family, designed for educational and research purposes in understanding IoT security vulnerabilities and DDoS attack vectors.**
+
+  <img width="714" height="420" alt="image" src="https://github.com/user-attachments/assets/d4e83fa7-a9f9-4a22-b424-bdfc2eebd89c" />
+</div>
 
 
 ## Build Instructions
