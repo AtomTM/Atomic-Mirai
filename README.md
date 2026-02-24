@@ -52,5 +52,5 @@ This software is provided strictly for educational, research, and security testi
 
 <div align="center">
 
-[**@Atomic Team**](https://github.com/AtomTM) <br> [**@CirqueiraDev**](https://github.com/CirqueiraDev) 
+[**@Atomic Team**](https://github.com/AtomTM)
 </div>
