@@ -78,28 +78,21 @@ func Handle(conn net.Conn) {
 
 	for {
 		conn.SetDeadline(time.Now().Add(pingTimeout))
-
-		readCh := make(chan readResult, 1)
-		go func() {
-			buf := make([]byte, 2)
-			_, err := conn.Read(buf)
-			readCh <- readResult{buf, err}
-		}()
-
+		
 		select {
-		case res := <-readCh:
-			if res.err != nil {
+		case broadcast := <-New.Stream:
+			conn.SetDeadline(time.Now().Add(10 * time.Second))
+			if _, err := conn.Write(broadcast); err != nil {
 				return
 			}
-
-		case broadcast := <-New.Stream:
-			conn.SetDeadline(time.Now())
-			<-readCh
+		default:
+			buf := make([]byte, 2)
 			conn.SetDeadline(time.Now().Add(pingTimeout))
-
-			if _, err := conn.Write(broadcast); err != nil {
+			_, err := conn.Read(buf)
+			if err != nil {
 				return
 			}
 		}
 	}
 }
+
