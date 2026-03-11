@@ -188,7 +188,7 @@ int main(int argc, char **args)
             mfd = fd_serv;
 
         timeo.tv_usec = 0;
-        timeo.tv_sec = 10;
+        timeo.tv_sec = 5;
         nfds = select(mfd + 1, &fdsetrd, &fdsetwr, NULL, &timeo);
         if (nfds == -1)
         {
